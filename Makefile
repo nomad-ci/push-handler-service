@@ -14,16 +14,24 @@ CURRENT_DIR := $(patsubst %/,%,$(dir $(MKFILE_PATH)))
 clean:
 	rm -rf work
 
-vendor:
+vendor: Gopkg.toml
 	dep ensure
 
 GINKGO := $(GOPATH)/bin/ginkgo
 $(GINKGO): vendor
 	cd vendor/github.com/onsi/ginkgo/ginkgo && go install .
 
+MOCKERY := $(GOPATH)/bin/mockery
+$(MOCKERY): vendor
+	cd vendor/github.com/vektra/mockery/cmd/mockery && go install .
+
 .PHONY: tools
-tools: $(GINKGO)
+tools: $(GINKGO) $(MOCKERY)
+
+.PHONY: mocks
+mocks: $(MOCKERY)
+	$(MOCKERY) -dir=internal/pkg/interfaces -case=underscore -all -inpkg
 
 .PHONY: test
-test: $(GINKGO)
-	@$(GINKGO) ./...
+test: $(GINKGO) mocks
+	@$(GINKGO) -r

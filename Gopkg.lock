@@ -45,6 +45,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/vektra/mockery"
+  packages = ["cmd/mockery","mockery"]
+  revision = "b6f6c13c25c3f0a17724553fa01580f328158d7a"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
   revision = "94eea52f7b742c7cbe0b03b22f0c4c8631ece122"
@@ -68,6 +74,12 @@
   revision = "75cc3cad82b5f47d3fb229ddda8c5167da14f294"
 
 [[projects]]
+  branch = "master"
+  name = "golang.org/x/tools"
+  packages = ["go/ast/astutil","go/buildutil","go/loader","imports"]
+  revision = "04447353bc504b9a5c02eb227b9ecd252e64ea20"
+
+[[projects]]
   branch = "v2"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
@@ -76,6 +88,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "954ff2083927fc4d0d1feda0b6677603e4ababf30135d35471ec5c60e1ced9ad"
+  inputs-digest = "9d11541df60d8301fa46769c6db4102f941623b53a6989341906b7d2ead4af12"
   solver-name = "gps-cdcl"
   solver-version = 1
