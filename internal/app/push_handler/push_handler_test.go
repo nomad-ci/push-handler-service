@@ -48,7 +48,7 @@ var _ = Describe("PushHandler", func() {
             req.Header.Add("X-Hub-Signature", "sha1=d9fd3f2b1dd74386ece71aec95df0b442b1a8e61")
 
             router.ServeHTTP(resp, req)
-            Expect(resp.Code).To(Equal(http.StatusAccepted))
+            Expect(resp.Code).To(Equal(http.StatusNoContent))
         })
 
         It("should handle a push event", func() {
