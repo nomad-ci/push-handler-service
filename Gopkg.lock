@@ -38,6 +38,12 @@
   revision = "53e6ce116135b80d037921a7fdd5138cf32d7a8a"
 
 [[projects]]
+  name = "github.com/gorhill/cronexpr"
+  packages = ["."]
+  revision = "a557574d6c024ed6e36acc8b610f5f211c91568a"
+  version = "1.0.0"
+
+[[projects]]
   name = "github.com/gorilla/context"
   packages = ["."]
   revision = "1ea25387ff6f684839d82767c1733ff4d4d15d0a"
@@ -78,6 +84,12 @@
   name = "github.com/hashicorp/hcl"
   packages = [".","hcl/ast","hcl/parser","hcl/scanner","hcl/strconv","hcl/token","json/parser","json/scanner","json/token"]
   revision = "23c074d0eceb2b8a5bfdbb271ab780cde70f05a8"
+
+[[projects]]
+  name = "github.com/hashicorp/nomad"
+  packages = ["api","api/contexts","helper","helper/uuid"]
+  revision = "1292569ac11aacfe8555a6bd94c0faedae2138e7"
+  version = "v0.7.0"
 
 [[projects]]
   name = "github.com/hashicorp/vault"
@@ -178,6 +190,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "67d6fd1c7ee3bd9a3cf3b8e79a591be40dce2010a0c92e124e456cc4bca6189a"
+  inputs-digest = "d7c6258a28f6da038f0e9707a02b160052630fdfab81a936be88053a682d60cd"
   solver-name = "gps-cdcl"
   solver-version = 1

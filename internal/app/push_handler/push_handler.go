@@ -24,8 +24,10 @@ import (
     "github.com/google/go-github/github"
 
     "github.com/nomad-ci/push-handler-service/internal/pkg/interfaces"
+    "github.com/nomad-ci/push-handler-service/internal/pkg/structs"
 )
 
+// error returned when request preflight fails
 type preflightError struct {
     msg string
     statusCode int
@@ -42,12 +44,21 @@ func (self *preflightError) Error() string {
 type PushHandler struct {
     vault              interfaces.VaultLogical
     webhookTokenPrefix string
+    nomad              interfaces.NomadJobs
+    dispatchId         string
 }
 
-func NewPushHandler(vaultLogical interfaces.VaultLogical, tokenPrefix string) *PushHandler {
+func NewPushHandler(
+    vault interfaces.VaultLogical,
+    tokenPrefix string,
+    nomad interfaces.NomadJobs,
+    dispatchId string,
+) *PushHandler {
     return &PushHandler{
-        vault: vaultLogical,
+        vault:              vault,
         webhookTokenPrefix: tokenPrefix,
+        nomad:              nomad,
+        dispatchId:         dispatchId,
     }
 }
 
@@ -106,8 +117,12 @@ func (self *PushHandler) preflightGitHubEvent(resp http.ResponseWriter, req *htt
         }
     }
 
-    logEntry := log.WithField("remote_ip", remoteAddr)
+    logEntry := log.
+        WithField("remote_ip", remoteAddr).
+        WithField("provider", "github").
+        WithField("auth_token", vars["auth_token"])
 
+    // https://developer.github.com/webhooks/securing/
     secret, _ := self.vault.Read(path.Join(self.webhookTokenPrefix, "github", vars["auth_token"]))
     if secret == nil {
         return nil, logEntry, newPreflightError(fmt.Sprintf("unauthorized webhook %s", vars["auth_token"]), http.StatusNotFound)
@@ -150,6 +165,29 @@ func (self *PushHandler) GitHubPushEvent(resp http.ResponseWriter, req *http.Req
         resp.WriteHeader(http.StatusBadRequest)
         return
     }
+
+    // create payload for dispatch
+    dispatchBytes, err := json.Marshal(structs.CloneDispatchPayload{
+        CloneURL: *payload.Repo.CloneURL,
+        Ref:      *payload.Ref,
+        SHA:      *payload.After,
+    })
+
+    if err != nil {
+        logEntry.Errorf("unable to marshal dispatch payload: %s", err)
+        resp.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+
+    // actually dispatch the job to nomad
+    dispatchResp, _, err := self.nomad.Dispatch(
+        self.dispatchId,
+        map[string]string{},
+        dispatchBytes,
+        nil,
+    )
+
+    logEntry.Infof("dispatched %s with eval %s", dispatchResp.DispatchedJobID, dispatchResp.EvalID)
 
     resp.WriteHeader(http.StatusAccepted)
 }

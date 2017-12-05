@@ -6,6 +6,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+    "github.com/stretchr/testify/mock"
+
+    "encoding/json"
     "net/http"
     "net/http/httptest"
     "strings"
@@ -13,7 +16,9 @@ import (
     "github.com/gorilla/mux"
 
     vaultapi "github.com/hashicorp/vault/api"
+    nomadapi "github.com/hashicorp/nomad/api"
     "github.com/nomad-ci/push-handler-service/internal/pkg/interfaces"
+    "github.com/nomad-ci/push-handler-service/internal/pkg/structs"
 )
 
 // actual payloads captured with requestb.in
@@ -25,16 +30,24 @@ var _ = Describe("PushHandler", func() {
     var router *mux.Router
     var resp *httptest.ResponseRecorder
 
+    dispatchJobId := "clone-some-repo"
+
     var mockVaultLogical interfaces.MockVaultLogical
-    githubWebhookSecret := "011746565c10e8c64df18d8724bc542da584433c"
+    var mockNomadJobs interfaces.MockNomadJobs
 
     BeforeEach(func() {
         router = mux.NewRouter()
         resp = httptest.NewRecorder()
 
         mockVaultLogical = interfaces.MockVaultLogical{}
+        mockNomadJobs = interfaces.MockNomadJobs{}
 
-        ph = NewPushHandler(&mockVaultLogical, "webhook-tokens")
+        ph = NewPushHandler(
+            &mockVaultLogical,
+            "webhook-tokens",
+            &mockNomadJobs,
+            dispatchJobId,
+        )
         ph.InstallHandlers(router.PathPrefix("/notify/push").Subrouter())
     })
 
@@ -46,7 +59,8 @@ var _ = Describe("PushHandler", func() {
                 On("Read", "webhook-tokens/github/some-auth-token").
                 Return(&vaultapi.Secret{
                     Data: map[string]interface{} {
-                        "secret": githubWebhookSecret,
+                        // tied to the payload signatures
+                        "secret": "011746565c10e8c64df18d8724bc542da584433c",
                     },
                 }, nil)
         })
@@ -71,6 +85,23 @@ var _ = Describe("PushHandler", func() {
         })
 
         It("should handle a push event", func() {
+            mockNomadJobs.
+                On(
+                    "Dispatch",
+                    dispatchJobId,
+                    map[string]string{},
+                    mock.AnythingOfType("[]uint8"), // https://github.com/stretchr/testify/issues/387
+                    mock.AnythingOfType("*api.WriteOptions"),
+                ).
+                Return(
+                    &nomadapi.JobDispatchResponse{
+                        EvalID: "cafedead-beef-cafe-dead-beefcafedead",
+                        DispatchedJobID: dispatchJobId + "/dispatch-1234",
+                    },
+                    &nomadapi.WriteMeta{},
+                    nil,
+                )
+
             req, err := http.NewRequest(
                 "POST",
                 endpoint,
@@ -87,6 +118,17 @@ var _ = Describe("PushHandler", func() {
             Expect(resp.Code).To(Equal(http.StatusAccepted))
 
             mockVaultLogical.AssertExpectations(GinkgoT())
+            mockNomadJobs.AssertExpectations(GinkgoT())
+
+            // verify payload
+            var dispatchPayload structs.CloneDispatchPayload
+            Expect(json.Unmarshal(mockNomadJobs.Calls[0].Arguments[2].([]byte), &dispatchPayload)).ShouldNot(HaveOccurred())
+
+            Expect(dispatchPayload).To(Equal(structs.CloneDispatchPayload{
+                CloneURL: "https://github.com/nomad-ci/push-handler-service.git",
+                Ref:      "refs/heads/master",
+                SHA:      "024acfdef6b2f11d8b9b2d1e49b9dc401e64ffd7",
+            }))
         })
 
         It("should return 403 for an invalid signature", func() {

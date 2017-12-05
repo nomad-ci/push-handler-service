@@ -11,6 +11,12 @@ import (
 
 func TestPushHandler(t *testing.T) {
 	RegisterFailHandler(Fail)
-    logrus.SetLevel(logrus.PanicLevel)
-	RunSpecs(t, "PushHandler Suite")
+
+    // ginkgo will only output the messages if there's a test failure
+    logrus.SetOutput(GinkgoWriter)
+
+    // so we can crank the verbosity
+    logrus.SetLevel(logrus.DebugLevel)
+
+    RunSpecs(t, "PushHandler Suite")
 }
