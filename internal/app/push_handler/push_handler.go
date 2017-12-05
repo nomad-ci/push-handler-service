@@ -6,6 +6,7 @@ package push_handler
 // secret and shared with github, which uses it to sign the payload.
 
 import (
+    "fmt"
     "io/ioutil"
 
     "net"
@@ -24,6 +25,19 @@ import (
 
     "github.com/nomad-ci/push-handler-service/internal/pkg/interfaces"
 )
+
+type preflightError struct {
+    msg string
+    statusCode int
+}
+
+func newPreflightError(msg string, statusCode int) *preflightError {
+    return &preflightError{msg, statusCode}
+}
+
+func (self *preflightError) Error() string {
+    return self.msg
+}
 
 type PushHandler struct {
     vault              interfaces.VaultLogical
@@ -57,7 +71,7 @@ func (self *PushHandler) InstallHandlers(router *mux.Router) {
         HandlerFunc(self.GitHubPingEvent)
 }
 
-func (self *PushHandler) checkGitHubMac(body []byte, secret, messageMAC string) bool {
+func checkGitHubMac(body []byte, secret, messageMAC string) bool {
     if messageMAC[:5] != "sha1=" {
         return false
     }
@@ -76,8 +90,7 @@ func (self *PushHandler) checkGitHubMac(body []byte, secret, messageMAC string) 
     return hmac.Equal(realMessageMac, expectedMAC)
 }
 
-// https://developer.github.com/v3/activity/events/types/#pushevent
-func (self *PushHandler) GitHubPushEvent(resp http.ResponseWriter, req *http.Request) {
+func (self *PushHandler) preflightGitHubEvent(resp http.ResponseWriter, req *http.Request) ([]byte, *log.Entry, *preflightError) {
     vars := mux.Vars(req)
 
     var err error
@@ -97,9 +110,7 @@ func (self *PushHandler) GitHubPushEvent(resp http.ResponseWriter, req *http.Req
 
     secret, _ := self.vault.Read(path.Join(self.webhookTokenPrefix, "github", vars["auth_token"]))
     if secret == nil {
-        logEntry.Warnf("unauthorized webhook %s", vars["auth_token"])
-        resp.WriteHeader(http.StatusNotFound)
-        return
+        return nil, logEntry, newPreflightError(fmt.Sprintf("unauthorized webhook %s", vars["auth_token"]), http.StatusNotFound)
     }
 
     hmacSecret := secret.Data["secret"].(string)
@@ -108,25 +119,32 @@ func (self *PushHandler) GitHubPushEvent(resp http.ResponseWriter, req *http.Req
     if xhs, ok := req.Header["X-Hub-Signature"]; ok {
         hubSignature = xhs[0]
     } else {
-        logEntry.Error("no X-Hub-Signature header")
-        resp.WriteHeader(http.StatusBadRequest)
-        return
+        return nil, logEntry, newPreflightError("no X-Hub-Signature header", http.StatusBadRequest)
     }
 
     body, err := ioutil.ReadAll(req.Body)
     if err != nil {
-        logEntry.Errorf("unable to read body: %s", err)
-        http.Error(resp, "unable to read body", http.StatusBadRequest)
-        return
+        return nil, logEntry, newPreflightError(fmt.Sprintf("unable to read body: %s", err), http.StatusBadRequest)
     }
 
-    if ! self.checkGitHubMac(body, hmacSecret, hubSignature) {
-        resp.WriteHeader(http.StatusForbidden)
+    if ! checkGitHubMac(body, hmacSecret, hubSignature) {
+        return nil, logEntry, newPreflightError("bad payload signature", http.StatusForbidden)
+    }
+
+    return body, logEntry, nil
+}
+
+// https://developer.github.com/v3/activity/events/types/#pushevent
+func (self *PushHandler) GitHubPushEvent(resp http.ResponseWriter, req *http.Request) {
+    body, logEntry, preflightErr := self.preflightGitHubEvent(resp, req)
+    if preflightErr != nil {
+        logEntry.Error(preflightErr.msg)
+        resp.WriteHeader(preflightErr.statusCode)
         return
     }
 
     var payload github.PushEvent
-    err = json.Unmarshal(body, &payload)
+    err := json.Unmarshal(body, &payload)
     if err != nil {
         logEntry.Errorf("unable to unmarshal body: %s", err)
         resp.WriteHeader(http.StatusBadRequest)
@@ -138,49 +156,15 @@ func (self *PushHandler) GitHubPushEvent(resp http.ResponseWriter, req *http.Req
 
 // https://developer.github.com/v3/activity/events/types/#pushevent
 func (self *PushHandler) GitHubPingEvent(resp http.ResponseWriter, req *http.Request) {
-    vars := mux.Vars(req)
-
-    var err error
-    var remoteAddr string
-
-    if xff, ok := req.Header["X-Forwarded-For"]; ok {
-        remoteAddr = xff[0]
-    } else {
-        remoteAddr, _, err = net.SplitHostPort(req.RemoteAddr)
-        if err != nil {
-            log.Warnf("unable to parse RemoteAddr '%s': %s", remoteAddr, err)
-            remoteAddr = req.RemoteAddr
-        }
-    }
-
-    logEntry := log.WithField("remote_ip", remoteAddr)
-
-    secret, _ := self.vault.Read(path.Join(self.webhookTokenPrefix, "github", vars["auth_token"]))
-    hmacSecret := secret.Data["secret"].(string)
-
-    var hubSignature string
-    if xhs, ok := req.Header["X-Hub-Signature"]; ok {
-        hubSignature = xhs[0]
-    } else {
-        logEntry.Error("no X-Hub-Signature header")
-        resp.WriteHeader(http.StatusBadRequest)
-        return
-    }
-
-    body, err := ioutil.ReadAll(req.Body)
-    if err != nil {
-        logEntry.Errorf("unable to read body: %s", err)
-        http.Error(resp, "unable to read body", http.StatusBadRequest)
-        return
-    }
-
-    if ! self.checkGitHubMac(body, hmacSecret, hubSignature) {
-        resp.WriteHeader(http.StatusForbidden)
+    body, logEntry, preflightErr := self.preflightGitHubEvent(resp, req)
+    if preflightErr != nil {
+        logEntry.Error(preflightErr.msg)
+        resp.WriteHeader(preflightErr.statusCode)
         return
     }
 
     var payload github.PingEvent
-    err = json.Unmarshal(body, &payload)
+    err := json.Unmarshal(body, &payload)
     if err != nil {
         logEntry.Errorf("unable to unmarshal body: %s", err)
         resp.WriteHeader(http.StatusBadRequest)
