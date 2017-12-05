@@ -15,7 +15,7 @@ CURRENT_DIR := $(patsubst %/,%,$(dir $(MKFILE_PATH)))
 
 .PHONY: clean
 clean:
-	rm -rf work
+	git clean -f -Xd
 
 vendor: Gopkg.toml
 	dep ensure
