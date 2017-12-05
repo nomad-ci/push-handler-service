@@ -154,7 +154,7 @@ func (self *PushHandler) GitHubPushEvent(resp http.ResponseWriter, req *http.Req
     resp.WriteHeader(http.StatusAccepted)
 }
 
-// https://developer.github.com/v3/activity/events/types/#pushevent
+// https://developer.github.com/webhooks/#ping-event
 func (self *PushHandler) GitHubPingEvent(resp http.ResponseWriter, req *http.Request) {
     body, logEntry, preflightErr := self.preflightGitHubEvent(resp, req)
     if preflightErr != nil {
