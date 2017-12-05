@@ -32,9 +32,14 @@ $(MOCKERY): vendor
 tools: $(GINKGO) $(MOCKERY)
 
 .PHONY: mocks
+#  $(shell go list -f '{{ range .GoFiles }}{{ $$.Dir }}/{{ . }} {{ end }}' ./internal/pkg/interfaces | sed -e 's@$(CURRENT_DIR)/@@g')
 mocks: $(MOCKERY)
 	$(MOCKERY) -dir=internal/pkg/interfaces -case=underscore -all -inpkg
 
 .PHONY: test
 test: $(GINKGO) mocks
 	@$(GINKGO) -r
+
+.PHONY: watch-tests
+watch-tests: $(GINKGO) mocks
+	@$(GINKGO) watch -r
