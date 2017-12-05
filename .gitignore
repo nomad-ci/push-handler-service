@@ -1,2 +1,4 @@
 ## not checking in vendor for the time being
 /vendor/
+
+internal/pkg/interfaces/mock_*.go

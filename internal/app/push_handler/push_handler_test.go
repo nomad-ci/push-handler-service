@@ -11,6 +11,9 @@ import (
     "strings"
 
     "github.com/gorilla/mux"
+
+    vaultapi "github.com/hashicorp/vault/api"
+    "github.com/nomad-ci/push-handler-service/internal/pkg/interfaces"
 )
 
 // actual payloads captured with requestb.in
@@ -21,18 +24,32 @@ var _ = Describe("PushHandler", func() {
     var ph *PushHandler
     var router *mux.Router
     var resp *httptest.ResponseRecorder
+
+    var mockVaultLogical interfaces.MockVaultLogical
     githubWebhookSecret := "011746565c10e8c64df18d8724bc542da584433c"
 
     BeforeEach(func() {
         router = mux.NewRouter()
         resp = httptest.NewRecorder()
 
-        ph = NewPushHandler([]byte(githubWebhookSecret))
+        mockVaultLogical = interfaces.MockVaultLogical{}
+
+        ph = NewPushHandler(&mockVaultLogical, "webhook-tokens")
         ph.InstallHandlers(router.PathPrefix("/notify/push").Subrouter())
     })
 
     Describe("for GitHub", func() {
         endpoint := "http://example.com/notify/push/github/some-auth-token"
+
+        BeforeEach(func() {
+            mockVaultLogical.
+                On("Read", "webhook-tokens/github/some-auth-token").
+                Return(&vaultapi.Secret{
+                    Data: map[string]interface{} {
+                        "secret": githubWebhookSecret,
+                    },
+                }, nil)
+        })
 
         It("should handle a ping", func() {
             req, err := http.NewRequest(
@@ -49,6 +66,8 @@ var _ = Describe("PushHandler", func() {
 
             router.ServeHTTP(resp, req)
             Expect(resp.Code).To(Equal(http.StatusNoContent))
+
+            mockVaultLogical.AssertExpectations(GinkgoT())
         })
 
         It("should handle a push event", func() {
@@ -66,6 +85,8 @@ var _ = Describe("PushHandler", func() {
 
             router.ServeHTTP(resp, req)
             Expect(resp.Code).To(Equal(http.StatusAccepted))
+
+            mockVaultLogical.AssertExpectations(GinkgoT())
         })
 
         It("should return 403 for an invalid signature", func() {
@@ -83,6 +104,38 @@ var _ = Describe("PushHandler", func() {
 
             router.ServeHTTP(resp, req)
             Expect(resp.Code).To(Equal(http.StatusForbidden))
+
+            mockVaultLogical.AssertExpectations(GinkgoT())
         })
+    })
+
+    Describe("for GitHub invalid webhooks", func() {
+        endpoint := "http://example.com/notify/push/github/invalid-auth-token"
+
+        BeforeEach(func() {
+            mockVaultLogical.
+                On("Read", "webhook-tokens/github/invalid-auth-token").
+                Return(nil, nil)
+        })
+
+        It("should return 404 for an unknown auth token", func() {
+            req, err := http.NewRequest(
+                "POST",
+                endpoint,
+                strings.NewReader(githubPushEventExamplePayload),
+            )
+            Expect(err).ShouldNot(HaveOccurred())
+
+            req.Header.Add("Content-Type", "application/json")
+            req.Header.Add("X-Github-Event", "push")
+            req.Header.Add("X-Github-Delivery", "some-uuid")
+            req.Header.Add("X-Hub-Signature", "sha1=93308d96ce42201626ede454a2b420cd21b9df71")
+
+            router.ServeHTTP(resp, req)
+            Expect(resp.Code).To(Equal(http.StatusNotFound))
+
+            mockVaultLogical.AssertExpectations(GinkgoT())
+        })
+
     })
 })

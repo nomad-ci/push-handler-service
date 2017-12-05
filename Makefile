@@ -10,6 +10,9 @@ MKFILE_PATH := $(realpath $(lastword $(MAKEFILE_LIST)))
 ## fully-qualified path to the current directory
 CURRENT_DIR := $(patsubst %/,%,$(dir $(MKFILE_PATH)))
 
+# work/api: $(shell go list -f '{{range .GoFiles}}{{ $$.Dir }}/{{.}} {{end}}' ./cmd/api | sed -e 's@$(CURRENT_DIR)/@@g' )
+# 	go build -v -o work/api ./cmd/api
+
 .PHONY: clean
 clean:
 	rm -rf work

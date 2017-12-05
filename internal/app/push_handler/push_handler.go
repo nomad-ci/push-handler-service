@@ -1,10 +1,16 @@
 package push_handler
 
+// the push handlers consume requests like /notify/push/github/<token>.  the
+// <token> is looked up in Vault, and the payload is used to validate the
+// request.  in the case of github, the hmac secret is contained in the Vault
+// secret and shared with github, which uses it to sign the payload.
+
 import (
     "io/ioutil"
 
     "net"
     "net/http"
+    "path"
 
     "crypto/hmac"
     "crypto/sha1"
@@ -15,14 +21,20 @@ import (
 
     "github.com/gorilla/mux"
     "github.com/google/go-github/github"
+
+    "github.com/nomad-ci/push-handler-service/internal/pkg/interfaces"
 )
 
 type PushHandler struct {
-    secret []byte
+    vault              interfaces.VaultLogical
+    webhookTokenPrefix string
 }
 
-func NewPushHandler(secret []byte) *PushHandler {
-    return &PushHandler{secret}
+func NewPushHandler(vaultLogical interfaces.VaultLogical, tokenPrefix string) *PushHandler {
+    return &PushHandler{
+        vault: vaultLogical,
+        webhookTokenPrefix: tokenPrefix,
+    }
 }
 
 func (self *PushHandler) InstallHandlers(router *mux.Router) {
@@ -45,7 +57,7 @@ func (self *PushHandler) InstallHandlers(router *mux.Router) {
         HandlerFunc(self.GitHubPingEvent)
 }
 
-func (self *PushHandler) checkGitHubMac(body []byte, messageMAC string) bool {
+func (self *PushHandler) checkGitHubMac(body []byte, secret, messageMAC string) bool {
     if messageMAC[:5] != "sha1=" {
         return false
     }
@@ -56,7 +68,7 @@ func (self *PushHandler) checkGitHubMac(body []byte, messageMAC string) bool {
         return false
     }
 
-    mac := hmac.New(sha1.New, self.secret)
+    mac := hmac.New(sha1.New, []byte(secret))
     mac.Write(body)
     expectedMAC := mac.Sum(nil)
 
@@ -66,6 +78,8 @@ func (self *PushHandler) checkGitHubMac(body []byte, messageMAC string) bool {
 
 // https://developer.github.com/v3/activity/events/types/#pushevent
 func (self *PushHandler) GitHubPushEvent(resp http.ResponseWriter, req *http.Request) {
+    vars := mux.Vars(req)
+
     var err error
     var remoteAddr string
 
@@ -80,6 +94,15 @@ func (self *PushHandler) GitHubPushEvent(resp http.ResponseWriter, req *http.Req
     }
 
     logEntry := log.WithField("remote_ip", remoteAddr)
+
+    secret, _ := self.vault.Read(path.Join(self.webhookTokenPrefix, "github", vars["auth_token"]))
+    if secret == nil {
+        logEntry.Warnf("unauthorized webhook %s", vars["auth_token"])
+        resp.WriteHeader(http.StatusNotFound)
+        return
+    }
+
+    hmacSecret := secret.Data["secret"].(string)
 
     var hubSignature string
     if xhs, ok := req.Header["X-Hub-Signature"]; ok {
@@ -97,7 +120,7 @@ func (self *PushHandler) GitHubPushEvent(resp http.ResponseWriter, req *http.Req
         return
     }
 
-    if ! self.checkGitHubMac(body, hubSignature) {
+    if ! self.checkGitHubMac(body, hmacSecret, hubSignature) {
         resp.WriteHeader(http.StatusForbidden)
         return
     }
@@ -115,6 +138,8 @@ func (self *PushHandler) GitHubPushEvent(resp http.ResponseWriter, req *http.Req
 
 // https://developer.github.com/v3/activity/events/types/#pushevent
 func (self *PushHandler) GitHubPingEvent(resp http.ResponseWriter, req *http.Request) {
+    vars := mux.Vars(req)
+
     var err error
     var remoteAddr string
 
@@ -129,6 +154,9 @@ func (self *PushHandler) GitHubPingEvent(resp http.ResponseWriter, req *http.Req
     }
 
     logEntry := log.WithField("remote_ip", remoteAddr)
+
+    secret, _ := self.vault.Read(path.Join(self.webhookTokenPrefix, "github", vars["auth_token"]))
+    hmacSecret := secret.Data["secret"].(string)
 
     var hubSignature string
     if xhs, ok := req.Header["X-Hub-Signature"]; ok {
@@ -146,7 +174,7 @@ func (self *PushHandler) GitHubPingEvent(resp http.ResponseWriter, req *http.Req
         return
     }
 
-    if ! self.checkGitHubMac(body, hubSignature) {
+    if ! self.checkGitHubMac(body, hmacSecret, hubSignature) {
         resp.WriteHeader(http.StatusForbidden)
         return
     }
