@@ -98,6 +98,12 @@
   version = "v0.9.0"
 
 [[projects]]
+  name = "github.com/jessevdk/go-flags"
+  packages = ["."]
+  revision = "96dc06278ce32a0e9d957d590bb987c81ee66407"
+  version = "v1.3.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/mitchellh/go-homedir"
   packages = ["."]
@@ -190,6 +196,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d7c6258a28f6da038f0e9707a02b160052630fdfab81a936be88053a682d60cd"
+  inputs-digest = "90809cf13810d54987f4a0f701aecd397b7264aae5c4be978b2ec35c55789fab"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -2,3 +2,4 @@
 /vendor/
 
 internal/pkg/interfaces/mock_*.go
+/work/

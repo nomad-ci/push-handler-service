@@ -10,8 +10,7 @@ MKFILE_PATH := $(realpath $(lastword $(MAKEFILE_LIST)))
 ## fully-qualified path to the current directory
 CURRENT_DIR := $(patsubst %/,%,$(dir $(MKFILE_PATH)))
 
-# work/api: $(shell go list -f '{{range .GoFiles}}{{ $$.Dir }}/{{.}} {{end}}' ./cmd/api | sed -e 's@$(CURRENT_DIR)/@@g' )
-# 	go build -v -o work/api ./cmd/api
+all: default
 
 .PHONY: clean
 clean:
@@ -43,3 +42,9 @@ test: $(GINKGO) mocks
 .PHONY: watch-tests
 watch-tests: $(GINKGO) mocks
 	@$(GINKGO) watch -r
+
+default: work/push-handler-service
+
+work/push-handler-service: test
+	go build -v -o $@ ./cmd/push-handler-service
+
