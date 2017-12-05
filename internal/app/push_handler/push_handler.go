@@ -187,6 +187,12 @@ func (self *PushHandler) GitHubPushEvent(resp http.ResponseWriter, req *http.Req
         nil,
     )
 
+    if err != nil {
+        logEntry.Errorf("unable to dispatch job: %s", err)
+        resp.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+
     logEntry.Infof("dispatched %s with eval %s", dispatchResp.DispatchedJobID, dispatchResp.EvalID)
 
     resp.WriteHeader(http.StatusAccepted)
