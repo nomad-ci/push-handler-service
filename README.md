@@ -6,7 +6,7 @@ HTTP service to handle push notifications, such as via a GitHub webhook.
 
 ## running
 
-Assumes the local Nomad instance has a parameterized job named `build-something`, and that there's a Vault secret that's been set up with:
+Assumes the local Nomad instance has a parameterized job named `clone-source`, and that there's a Vault secret that's been set up with:
 
     write secret/webhook-tokens/github/some-auth-token \
         secret=011746565c10e8c64df18d8724bc542da584433c
@@ -17,7 +17,7 @@ Then:
         --vault-token … \
         --webhook-token-prefix secret/webhook-tokens \
         --nomad-addr http://127.0.0.1:4646 \
-        --dispatch-job-id build-something
+        --dispatch-job-id clone-source
 
 ## examples
 
