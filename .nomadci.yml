@@ -1,0 +1,5 @@
+driver: docker
+config:
+    image: golang
+    args:
+        - "make"
