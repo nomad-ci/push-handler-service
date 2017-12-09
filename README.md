@@ -8,7 +8,7 @@ HTTP service to handle push notifications, such as via a GitHub webhook.
 
 Assumes the local Nomad instance has a parameterized job named `clone-source`, and that there's a Vault secret that's been set up with:
 
-    write secret/webhook-tokens/github/some-auth-token \
+    vault write secret/webhook-tokens/github/some-auth-token \
         secret=011746565c10e8c64df18d8724bc542da584433c
 
 Then:
@@ -38,3 +38,7 @@ Then:
         -H 'X-Hub-Signature: sha1=93308d96ce42201626ede454a2b420cd21b9df71' \
         -d @test/fixtures/push.json \
         localhost:8080/notify/push/github/some-auth-token
+
+## meta
+
+project layout according to [golang-standards/project-layout](https://github.com/golang-standards/project-layout).
