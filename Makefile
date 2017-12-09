@@ -50,10 +50,10 @@ watch-tests: $(GINKGO) mocks
 	@$(GINKGO) watch -r
 
 work/push-handler-service-linux-amd64: test
-	GOOS=linux GOARCH=amd64 go build -v -o $@ ./cmd/push-handler-service
+	GOOS=linux GOARCH=amd64 go build -o $@ ./cmd/push-handler-service
 
 work/push-handler-service-darwin-amd64: test
-	GOOS=darwin GOARCH=amd64 go build -v -o $@ ./cmd/push-handler-service
+	GOOS=darwin GOARCH=amd64 go build -o $@ ./cmd/push-handler-service
 
 default: work/push-handler-service-darwin-amd64
 default: work/push-handler-service-linux-amd64
