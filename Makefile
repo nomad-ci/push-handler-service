@@ -16,8 +16,11 @@ all: default
 clean:
 	git clean -f -Xd
 
+$(GOPATH)/bin:
+	mkdir -p $@
+
 DEP := $(GOPATH)/bin/dep
-$(DEP):
+$(DEP): $(GOPATH)/bin
 	curl -sfSL -o $@ https://github.com/golang/dep/releases/download/v0.3.2/dep-$(shell go env GOOS)-$(shell go env GOARCH)
 	@chmod +x $@
 	@touch $@
