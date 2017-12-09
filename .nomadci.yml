@@ -1,5 +1,19 @@
 driver: docker
 config:
     image: golang
+    work_dir: ${NOMAD_TASK_DIR}/go/src/github.com/nomad-ci/push-handler-service/
     args:
-        - "make"
+        - make
+
+env:
+    GOPATH: ${NOMAD_TASK_DIR}/go
+    PATH: ${NOMAD_TASK_DIR}/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+resources:
+    ## dep requires a fair bit of memory; 100MB is insufficient (and so is the
+    ## default of 10!)
+    memory: 512
+
+artifacts:
+    -   source: ${NOMAD_META_nomadci_clone_source}
+        destination: local/go/src/github.com/nomad-ci/push-handler-service/
